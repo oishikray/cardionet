@@ -4,6 +4,15 @@ CardioNet is a Python cardiac MRI analysis project built around a local
 fine-tuned CineMA short-axis segmentation model plus downstream geometric and
 feature extraction code.
 
+The final pipeline is intended to allow the user to run segmentation of SAX
+cineMRI images using any arbitrary segmentation model, and intelligently
+extract geometric and physiological features in accordance with AHA standards
+of cardiac segmentation. Per segment features will include wall thickness,
+normalised wall thickness, timing, and range of motion, which will be both
+graphically and numerically presented to the end user. Finally, an optional
+classifier will be created to produce clinician-ready diagnostic results
+using the data exposed by the feature extraction.
+
 The workflow currently in use is:
 
 1. Load preprocessed ACDC short-axis cine data.
