@@ -27,3 +27,4 @@ smoke_test_saved_segmentation_visualizations_output/
 imports_audit.txt
 requirements.freeze.txt
 tmp/
+scripts/check_env.py
