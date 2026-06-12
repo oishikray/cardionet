@@ -1,0 +1,106 @@
+# Dataset selectors, validation, and low-level development switches.
+
+datasets:
+  active_dataset: "acdc"
+
+  acdc:
+    enabled: true
+    dataset_id: "acdc"
+    processed_root: "${paths.datasets.acdc_processed_root}"
+    split: "train"
+    view: "sax"
+
+    patients:
+      mode: "range"
+      start: 1
+      end: 100
+      explicit_ids: []
+      zero_pad: "${conventions.file_naming.acdc_patient_digits}"
+      prefix: "${conventions.file_naming.acdc_patient_prefix}"
+
+    file_patterns:
+      cine: "{patient_id}_sax_t.nii.gz"
+      ed: "{patient_id}_frame01.nii.gz"
+      es: "{patient_id}_frameXX.nii.gz"
+      gt: "{patient_id}_gt.nii.gz"
+      sax_ed: "{patient_id}_sax_ed.nii.gz"
+      sax_ed_gt: "{patient_id}_sax_ed_gt.nii.gz"
+      sax_es: "{patient_id}_sax_es.nii.gz"
+      sax_es_gt: "{patient_id}_sax_es_gt.nii.gz"
+
+    assumptions:
+      short_axis_only: true
+      segmentation_labels:
+        - "${conventions.labels.background}"
+        - "${conventions.labels.rv}"
+        - "${conventions.labels.myocardium}"
+        - "${conventions.labels.lv}"
+      canonical_output_axes: "${conventions.image_axes}"
+      current_loader_requires_transpose: true
+
+  bsc_internal:
+    enabled: false
+    dataset_id: "bsc_internal"
+    processed_root: "${paths.datasets.bsc_processed_root}"
+    split: "train"
+    view: "sax"
+
+validation:
+  fail_fast: true
+  warnings_as_errors: false
+
+  required_paths:
+    - "paths.project_root"
+    - "paths.model_root"
+
+  recommended_paths:
+    - "paths.datasets.acdc_processed_root"
+    - "paths.stage_outputs.segmentation"
+    - "paths.stage_outputs.qc"
+
+  assumptions_to_check:
+    - "input cine is 4D after loading"
+    - "loaded cine matches canonical axis order x,y,z,t"
+    - "segmentation labels follow 0/1/2/3 convention"
+    - "pad size is compatible with model expectations"
+    - "output z-dimension is cropped back to original depth"
+
+dev:
+  debug_mode: false
+  save_extra_arrays: false
+  print_shapes: true
+  print_unique_labels: true
+  keep_legacy_compatibility_switches: true
+
+pipeline:
+  stage_order: ["segmentation", "features", "classification", "visualisation"]
+
+scripts:
+  run_segmentation:
+    enabled: true
+    delegate_script: "infer_acdc_cine"
+
+  run_full_pipeline:
+    enabled: true
+    start_at: "segmentation"
+    stop_after: "visualisation"
+
+legacy_compatibility:
+  cinema:
+    allow_old_transpose_loader: true
+    allow_old_label_semantics: true
+    allow_framewise_inference_only: true
+
+  old_script_reference:
+    infer_acdc_cine_and_save_labels: true
+    notes: "Preserve behavior first, clean up later."
+
+future:
+  planned_extensions:
+    - "argparse or Hydra overlays on top of this YAML"
+    - "dataset-specific schema validation"
+    - "multi-view support"
+    - "training configuration"
+    - "evaluation metrics configuration"
+    - "internal lab dataset integration"
+    - "cluster execution profiles"

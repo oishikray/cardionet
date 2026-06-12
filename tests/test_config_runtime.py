@@ -3,7 +3,8 @@ from pathlib import Path
 import torch
 from omegaconf import OmegaConf
 
-from cardionet.config import resolve_dataset_root, resolve_patient_ids
+from cardionet.config import load_cardionet_config, resolve_dataset_root, resolve_patient_ids
+from cardionet.config import resolve_feature_raycast_settings
 from cardionet.config import resolve_prediction_labels_path, resolve_script_output_dir
 from cardionet.config import resolve_runtime_device_and_dtype
 
@@ -145,3 +146,70 @@ def test_resolve_prediction_labels_path_matches_inference_layout(tmp_path: Path)
         / "patient001_inference"
         / "patient001_sax_t_pred_labels.npy"
     )
+
+
+def test_load_default_split_config_merges_expected_sections():
+    config = load_cardionet_config()
+
+    assert config.project.name == "CardioNet"
+    assert config.paths.project_root == "D:/CardioNet"
+    assert config.segmentation.model.architecture == "ConvUNetR"
+    assert config.features.raycast.n_rays == 360
+    assert config.qc.volume_plot.ylabel == "Volume (ml)"
+    assert config.datasets.active_dataset == "acdc"
+    assert config.scripts.run_feature_extraction.output_dir == (
+        "D:/CardioNet/outputs/features/pipeline_features"
+    )
+    assert config.scripts.run_visualisations.output_root == (
+        "D:/CardioNet/outputs/qc/pipeline_visualisations"
+    )
+    assert config.cluster.scheduler == "slurm"
+    assert config.cluster.artifacts.manifest_path == (
+        "D:/CardioNet/outputs/manifests/pipeline_manifest.csv"
+    )
+
+
+def test_load_legacy_config_entrypoint_merges_included_fragments():
+    config = load_cardionet_config("cardionet_config.yaml")
+
+    assert config.scripts.infer_acdc_cine.output_root == "D:/CardioNet/outputs/segmentation"
+    assert config.scripts.extract_aha_wt_nwt.output_root == "D:/CardioNet/outputs/features"
+
+
+def test_load_known_config_fragment_loads_full_split_config():
+    config = load_cardionet_config("config/smoke_test.yaml")
+
+    assert config.paths.project_root == "D:/CardioNet"
+    assert config.scripts.run_feature_extraction.output_dir == (
+        "D:/CardioNet/outputs/features/pipeline_features"
+    )
+
+
+def test_resolve_feature_raycast_settings_uses_defaults_and_script_overrides():
+    config = OmegaConf.create(
+        {
+            "features": {
+                "raycast": {
+                    "n_rays": 360,
+                    "ray_step": 0.25,
+                    "max_radius": 250.0,
+                    "smooth_window": 11,
+                    "line_radius": 90.0,
+                }
+            },
+            "scripts": {
+                "custom_feature": {
+                    "n_rays": 180,
+                    "line_radius": 75.0,
+                }
+            },
+        }
+    )
+
+    settings = resolve_feature_raycast_settings(config, script_name="custom_feature")
+
+    assert settings.n_rays == 180
+    assert settings.ray_step == 0.25
+    assert settings.max_radius == 250.0
+    assert settings.smooth_window == 11
+    assert settings.line_radius == 75.0

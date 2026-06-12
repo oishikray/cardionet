@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +16,7 @@ from cardionet.config import (
     resolve_script_output_dir,
 )
 from cardionet.segmentation.inference import infer_cine_frames, subsample_time_axis
-from cardionet.segmentation.io import load_cine_nifti, save_inference_arrays
+from cardionet.segmentation.io import load_cine_nifti, read_nifti_geometry, save_inference_arrays
 from cardionet.segmentation.model_loader import load_convunetr_from_local
 from cardionet.segmentation.model_paths import resolve_finetuned_model_paths_from_config
 from cardionet.segmentation.transforms import build_sax_inference_transform
@@ -24,24 +25,7 @@ from cardionet.visualization.segmentation_qc import (
     plot_volume_changes,
 )
 
-SCRIPT_NAME = "infer_acdc_cine"
-
-
-def get_output_paths(
-    config: DictConfig,
-    *,
-    patient_id: str,
-    view: str,
-) -> tuple[Path, str]:
-    """Resolve patient output directory and basename from config."""
-    output_dir = resolve_script_output_dir(
-        config,
-        script_name=SCRIPT_NAME,
-        patient_id=patient_id,
-        view=view,
-    )
-    basename = resolve_output_basename(config, patient_id=patient_id, view=view)
-    return output_dir, basename
+INFER_SCRIPT_NAME = "infer_acdc_cine"
 
 
 def get_cine_filename(config: DictConfig, *, dataset_name: str, patient_id: str) -> str:
@@ -51,7 +35,7 @@ def get_cine_filename(config: DictConfig, *, dataset_name: str, patient_id: str)
 
 
 def get_qc_label_colors(config: DictConfig) -> dict[int, np.ndarray]:
-    """Resolve QC overlay colors using the canonical CardioNet label mapping."""
+    """Resolve QC overlay colors using the canonical label mapping."""
     colors_cfg = config.qc.segmentation_overlays.colors_rgba
     return {
         int(config.conventions.labels.rv): np.array(colors_cfg.rv, dtype=np.float32),
@@ -73,8 +57,9 @@ def process_patient(
     transform,
     device: torch.device,
     dtype: torch.dtype,
+    output_root: str | Path | None = None,
 ) -> None:
-    """Run configured framewise inference and optional QC for one patient."""
+    """Run configured framewise inference and save durable arrays plus optional QC."""
     view = str(config.segmentation.model.view)
     inference_cfg = config.segmentation.inference
     qc_cfg = config.qc
@@ -86,27 +71,28 @@ def process_patient(
         dataset_name=dataset_name,
         patient_id=patient_id,
     )
-
     if not input_nifti_path.exists():
         if bool(inference_cfg.validation.raise_on_missing_input):
             raise FileNotFoundError(f"Input cine file not found: {input_nifti_path}")
-
         print(f"[SKIP] {patient_id} not found.")
         return
 
-    output_dir, output_basename = get_output_paths(
+    output_dir = resolve_script_output_dir(
         config,
+        script_name=INFER_SCRIPT_NAME,
         patient_id=patient_id,
         view=view,
+        output_root=output_root,
     )
+    output_basename = resolve_output_basename(config, patient_id=patient_id, view=view)
 
     print("\n" + "=" * 60)
     print(f"Processing {patient_id}")
     print("=" * 60)
 
+    geometry = read_nifti_geometry(input_nifti_path)
     images = load_cine_nifti(input_nifti_path)
     images = subsample_time_axis(images, t_step=t_step)
-
     if bool(dev_cfg.print_shapes):
         print(f"Input shape for inference: {images.shape}")
 
@@ -119,15 +105,10 @@ def process_patient(
         dtype=dtype,
         show_progress=bool(config.logging.tqdm_enabled),
     )
-
     if bool(inference_cfg.validation.enforce_output_shape_match) and labels.shape != images.shape:
         raise RuntimeError(
             f"Predicted labels shape {labels.shape} does not match input shape {images.shape}"
         )
-
-    if bool(dev_cfg.print_shapes):
-        print("Predicted label volume shape:", labels.shape)
-
     if bool(dev_cfg.print_unique_labels):
         print("Unique labels in prediction:", np.unique(labels))
 
@@ -143,15 +124,13 @@ def process_patient(
         image_suffix=str(config.conventions.file_naming.saved_images_suffix),
         labels_suffix=str(config.conventions.file_naming.predicted_labels_suffix),
     )
-
     if images_path is not None:
         print("Saved images:", images_path)
     if labels_path is not None:
         print("Saved labels:", labels_path)
 
     save_qc = bool(config.outputs.save_qc and qc_cfg.enabled)
-    script_cfg = config.scripts[SCRIPT_NAME]
-
+    script_cfg = config.scripts[INFER_SCRIPT_NAME]
     if save_qc and bool(script_cfg.save_gif) and bool(qc_cfg.segmentation_overlays.enabled):
         gif_paths = plot_segmentations_per_slice(
             images=images,
@@ -165,6 +144,7 @@ def process_patient(
             gif_loop=int(qc_cfg.segmentation_overlays.gif_loop),
             gif_duration_base_ms=int(qc_cfg.segmentation_overlays.gif_duration_base_ms),
             label_colors=get_qc_label_colors(config),
+            contour_line_width=float(qc_cfg.segmentation_overlays.contour_line_width),
         )
         print(f"Saved {len(gif_paths)} slice GIF(s)")
 
@@ -176,7 +156,20 @@ def process_patient(
             labels=labels,
             t_step=t_step,
             filepath=volume_plot_path,
-            voxel_volume_ml=float(qc_cfg.volume_plot.voxel_volume_ml),
+            spacing_mm=geometry.spatial_spacing_mm,
+            drop_poor_lv_slices=bool(qc_cfg.volume_plot.get("drop_poor_lv_slices", False)),
+            lv_min_peak_area_fraction=float(
+                qc_cfg.volume_plot.lv_slice_drop.get("min_peak_area_fraction", 0.08)
+            ),
+            lv_apical_min_peak_area_fraction=float(
+                qc_cfg.volume_plot.lv_slice_drop.get("apical_min_peak_area_fraction", 0.20)
+            ),
+            lv_max_es_ed_area_ratio=float(
+                qc_cfg.volume_plot.lv_slice_drop.get("max_es_ed_area_ratio", 1.05)
+            ),
+            lv_apical_max_es_ed_area_ratio=float(
+                qc_cfg.volume_plot.lv_slice_drop.get("apical_max_es_ed_area_ratio", 1.0)
+            ),
             figsize=tuple(qc_cfg.volume_plot.figsize),
             dpi_screen=int(qc_cfg.volume_plot.dpi_screen),
             dpi_save=int(qc_cfg.volume_plot.dpi_save),
@@ -185,25 +178,36 @@ def process_patient(
         print("Saved volume plot:", volume_plot_path)
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run segmentation inference and save durable image/label arrays."
+    )
+    parser.add_argument("--config", type=Path, default=None)
+    parser.add_argument("--patient-id", default=None)
+    parser.add_argument("--output-root", default=None)
+    parser.add_argument(
+        "--patient-list",
+        default=None,
+        help="Comma-separated patient IDs. Overrides configured patient selection.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    config = load_cardionet_config()
-    script_cfg = config.scripts[SCRIPT_NAME]
+    args = parse_args()
+    config = load_cardionet_config(args.config)
+    script_cfg = config.scripts.infer_acdc_cine
     dataset_name = str(script_cfg.dataset_name)
     split = str(script_cfg.split)
 
     device, dtype = resolve_runtime_device_and_dtype(config)
-    print("Using device:", device)
-    print("Using dtype:", dtype)
-
-    weights_path, config_path = resolve_finetuned_model_paths_from_config(config)
-
+    weights_path, model_config_path = resolve_finetuned_model_paths_from_config(config)
     model = load_convunetr_from_local(
         weights_path=weights_path,
-        config_path=config_path,
+        config_path=model_config_path,
         device=device,
         eval_mode=bool(config.segmentation.model.eval_mode),
     )
-
     transform = build_sax_inference_transform(
         view=str(config.segmentation.inference.input_key),
         scale_intensity=bool(config.segmentation.inference.preprocessing.scale_intensity),
@@ -211,18 +215,21 @@ def main() -> None:
         spatial_size=tuple(config.segmentation.inference.preprocessing.pad_spatial_size),
         pad_method=str(config.segmentation.inference.preprocessing.pad_method),
     )
-
-    dataset_root = resolve_dataset_root(
-        config,
-        dataset_name=dataset_name,
-        split=split,
-    )
+    dataset_root = resolve_dataset_root(config, dataset_name=dataset_name, split=split)
     patient_ids = resolve_patient_ids(
         config,
         dataset_root=dataset_root,
-        script_name=SCRIPT_NAME,
+        script_name=INFER_SCRIPT_NAME,
         dataset_name=dataset_name,
     )
+    if args.patient_id:
+        patient_ids = [str(args.patient_id)]
+    elif args.patient_list:
+        patient_ids = [
+            patient_id.strip()
+            for patient_id in str(args.patient_list).split(",")
+            if patient_id.strip()
+        ]
 
     for patient_id in patient_ids:
         try:
@@ -235,10 +242,10 @@ def main() -> None:
                 transform=transform,
                 device=device,
                 dtype=dtype,
+                output_root=args.output_root,
             )
         except Exception as exc:
             print(f"[ERROR] {patient_id}: {exc}")
-            continue
 
 
 if __name__ == "__main__":

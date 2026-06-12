@@ -1,0 +1,77 @@
+# Shared project, path, naming, and label conventions.
+
+project:
+  name: "CardioNet"
+  version: "0.1.0"
+  description: "Cardiac MRI segmentation and feature extraction pipeline built around CineMA and downstream CardioNet analysis."
+  environment: "local-dev"
+  random_seed: 42
+  notes: "Split runtime config. Edit the purpose-specific files under config/."
+
+paths:
+  project_root: "D:/CardioNet"
+  src_root: "${paths.project_root}/src"
+  scripts_root: "${paths.project_root}/scripts"
+  tests_root: "${paths.project_root}/tests"
+  data_root: "${paths.project_root}/data"
+  outputs_root: "${paths.project_root}/outputs"
+  logs_root: "${paths.project_root}/logs"
+  temp_root: "${paths.project_root}/tmp"
+
+  cinema_repo_root: "${paths.project_root}/CineMA"
+  model_root: "${paths.project_root}/model/hf_mirror/mathpluscode_CineMA"
+
+  datasets:
+    acdc_raw_root: "${paths.data_root}/acdc/raw"
+    acdc_processed_root: "${paths.data_root}/acdc/processed"
+    acdc_train_root: "${paths.datasets.acdc_processed_root}/train"
+    acdc_val_root: "${paths.datasets.acdc_processed_root}/val"
+    acdc_test_root: "${paths.datasets.acdc_processed_root}/test"
+    bsc_raw_root: "${paths.data_root}/bsc/raw"
+    bsc_processed_root: "${paths.data_root}/bsc/processed"
+    cardiogpt_content_root: "${paths.data_root}/cardiogpt/content"
+    cardiogpt_dataset_root: "${paths.datasets.cardiogpt_content_root}/data_oishik"
+
+  stage_outputs:
+    segmentation: "${paths.outputs_root}/segmentation"
+    segmentation_selection: "${paths.outputs_root}/segmentation_gifs_acdc_selection"
+    smoke_visualizations: "${paths.outputs_root}/smoke_test_saved_segmentation_visualizations"
+    qc: "${paths.outputs_root}/qc"
+    geometry: "${paths.outputs_root}/geometry"
+    features: "${paths.outputs_root}/features"
+    reports: "${paths.outputs_root}/reports"
+    debug: "${paths.outputs_root}/debug"
+    cardiogpt_export: "${paths.outputs_root}/cardiogpt_segment_timeseries_export"
+    classification: "${paths.outputs_root}/segment_metric_threshold_classification"
+
+conventions:
+  image_axes: ["x", "y", "z", "t"]
+
+  labels:
+    background: 0
+    rv: 1
+    myocardium: 2
+    lv: 3
+
+  views:
+    sax: "short-axis"
+
+  file_naming:
+    acdc_patient_prefix: "patient"
+    acdc_patient_digits: 3
+    acdc_cine_suffix: "_sax_t.nii.gz"
+    predicted_labels_suffix: "_pred_labels.npy"
+    saved_images_suffix: "_images.npy"
+    volume_plot_suffix: "_mask_volume.png"
+
+outputs:
+  save_predictions: true
+  save_inputs: true
+  save_qc: true
+  save_geometry_outputs: true
+  save_feature_outputs: true
+  create_patient_subdirs: true
+
+  naming:
+    patient_output_dir_template: "{patient_id}_inference"
+    basename_template: "{patient_id}_{view}_t"

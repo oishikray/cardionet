@@ -1,0 +1,125 @@
+# Smoke tests, quick debug patients, and CardioGPT visualization reruns.
+
+smoke_tests:
+  acdc:
+    output_root: "${paths.project_root}/scratch"
+    default_patients: ["patient001", "patient021"]
+
+  cardiogpt_visualizations:
+    input_root: "${classification.cardiogpt.dataset_root}"
+    segmentation_root: "${paths.stage_outputs.smoke_visualizations}/segmentation"
+    output_root: "${paths.project_root}/smoke_test_saved_segmentation_visualizations_output"
+    ground_truth_labels_path: "${classification.cardiogpt.ground_truth_labels_path}"
+    default_selected_slices:
+      patient1963:
+        slice_index: 5
+        slice_type: "mid"
+    required_data_index_columns: ["ID", "Region", "Slice"]
+
+scripts:
+  scratch_smoke_acdc_inference:
+    enabled: true
+    dataset_name: "acdc"
+    split: "train"
+    patient_ids: "${smoke_tests.acdc.default_patients}"
+    output_root: "${smoke_tests.acdc.output_root}/acdc_smoke"
+    output_dir_template: "{patient_id}"
+    save_gif: true
+    save_volume_plot: true
+    save_aha_outputs: true
+
+  scratch_smoke_acdc_stack_aha:
+    enabled: true
+    dataset_name: "acdc"
+    split: "train"
+    patient_id: "patient021"
+    output_root: "${smoke_tests.acdc.output_root}/acdc_stack_aha"
+    output_dir_template: "{patient_id}"
+    save_gif: true
+    save_volume_plot: true
+    save_bullseye_summary: true
+    overlay_frame: null
+    selected_slices:
+      - slice_index: null
+        slice_type: null
+
+  scratch_smoke_acdc_dice:
+    enabled: true
+    dataset_name: "acdc"
+    split: "train"
+    patient_id: "patient021"
+    frames: ["ed", "es"]
+
+  example_acdc_pipeline:
+    enabled: true
+    dataset_name: "acdc"
+    split: "train"
+    patient_ids: "${smoke_tests.acdc.default_patients}"
+    output_root: "${smoke_tests.acdc.output_root}/acdc_example"
+    output_dir_template: "{patient_id}"
+    save_gif: true
+    save_volume_plot: true
+    save_aha_outputs: true
+
+  smoke_test_saved_segmentation_visualizations:
+    enabled: true
+    input_root: "${smoke_tests.cardiogpt_visualizations.input_root}"
+    segmentation_root: "${smoke_tests.cardiogpt_visualizations.segmentation_root}"
+    output_root: "${smoke_tests.cardiogpt_visualizations.output_root}"
+    ground_truth_labels_path: "${smoke_tests.cardiogpt_visualizations.ground_truth_labels_path}"
+    selected_slices: "${smoke_tests.cardiogpt_visualizations.default_selected_slices}"
+
+  generate_delta_t_graphs_cardiogpt:
+    enabled: true
+    input_root: "${smoke_tests.cardiogpt_visualizations.input_root}"
+    segmentation_root: "${smoke_tests.cardiogpt_visualizations.segmentation_root}"
+    output_root: "${paths.stage_outputs.smoke_visualizations}/delta_t"
+    selected_slices:
+      patient2152:
+        slice_index: 4
+        slice_type: "basal"
+      patient1621:
+        slice_index: 8
+        slice_type: "apical"
+      patient0885:
+        slice_index: 9
+        slice_type: "apical"
+      patient0806:
+        slice_index: 4
+        slice_type: "basal"
+      patient1320:
+        slice_index: 2
+        slice_type: "basal"
+      patient0823:
+        slice_index: 6
+        slice_type: "apical"
+      patient1792:
+        slice_index: 5
+        slice_type: "mid"
+      patient1686:
+        slice_index: 3
+        slice_type: "basal"
+      patient1731:
+        slice_index: 3
+        slice_type: "basal"
+      patient1963:
+        slice_index: 5
+        slice_type: "mid"
+      patient1826:
+        slice_index: 11
+        slice_type: "apical"
+      patient1612:
+        slice_index: 3
+        slice_type: "basal"
+
+  smoke_test_segmentation:
+    enabled: false
+    patient_id: "patient001"
+    output_root: "${paths.stage_outputs.debug}"
+
+  aha_geometry_debug:
+    enabled: false
+    patient_id: "patient001"
+    slice_index: null
+    frame_index: null
+    output_root: "${paths.stage_outputs.geometry}"

@@ -1,0 +1,97 @@
+# AHA geometry and downstream feature extraction settings.
+
+geometry:
+  enabled: true
+
+  general:
+    label_lv: "${conventions.labels.lv}"
+    label_myo: "${conventions.labels.myocardium}"
+    label_rv: "${conventions.labels.rv}"
+    expected_axes: "${conventions.image_axes}"
+
+  slice_selection:
+    method: "manual_clinician_selected"
+    default_mid_slice_strategy: "center_nonempty"
+    default_frame_strategy: "max_lv_area"
+
+  aha:
+    enabled: true
+    use_rv_myo_contact_anchor: true
+    segment_counts:
+      basal: 6
+      mid: 6
+      apical: 4
+      apex: 1
+    angle_units: "degrees"
+    full_circle_samples: 360
+
+features:
+  enabled: true
+
+  raycast:
+    n_rays: 360
+    ray_step: 0.25
+    max_radius: 250.0
+    smooth_window: 11
+    line_radius: 90.0
+
+  feature_inputs:
+    source_script: "infer_acdc_cine"
+
+  wall_thickness:
+    enabled: true
+    angular_samples: "${features.raycast.n_rays}"
+    interpolate_missing: false
+    enforce_full_coverage: false
+    save_raw_profiles: true
+
+  normalized_wall_thickness:
+    enabled: true
+    normalization_reference: "mean_initial_epicardial_radius"
+    save_matrix: true
+
+  cavity_metrics:
+    enabled: false
+
+  strain:
+    enabled: true
+    notes: "Config-driven radial strain and endocardial excursion extraction are available from saved SAX segmentation labels."
+
+scripts:
+  extract_aha_wt_nwt:
+    enabled: true
+    patient_id: "patient001"
+    source_script: "${features.feature_inputs.source_script}"
+    output_root: "${paths.stage_outputs.features}"
+    output_dir_template: "{patient_id}_aha"
+    slice_index: null
+    slice_type: null
+    frame_index_for_overlay: null
+
+  extract_radial_strain:
+    enabled: true
+    patient_id: "patient001"
+    source_script: "${features.feature_inputs.source_script}"
+    output_root: "${paths.stage_outputs.features}"
+    output_dir_template: "{patient_id}_radial_strain"
+    slice_index: null
+    slice_type: null
+    frame_index_for_overlay: null
+
+  extract_endocardial_excursion:
+    enabled: true
+    patient_id: "patient001"
+    source_script: "${features.feature_inputs.source_script}"
+    output_root: "${paths.stage_outputs.features}"
+    output_dir_template: "{patient_id}_endocardial_excursion"
+    slice_index: null
+    slice_type: null
+    frame_index_for_overlay: null
+
+  run_feature_extraction:
+    enabled: true
+    input_root: "${classification.cardiogpt.dataset_root}"
+    segmentation_root: "${paths.stage_outputs.smoke_visualizations}/segmentation"
+    output_dir: "${paths.stage_outputs.features}/pipeline_features"
+    ground_truth_labels_path: "${classification.cardiogpt.ground_truth_labels_path}"
+    selected_slices: "${smoke_tests.cardiogpt_visualizations.default_selected_slices}"

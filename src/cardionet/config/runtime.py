@@ -5,7 +5,20 @@ from pathlib import Path
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[3] / "cardionet_config.yaml"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_CONFIG_DIR = PROJECT_ROOT / "config"
+DEFAULT_CONFIG_PATH = DEFAULT_CONFIG_DIR
+
+CONFIG_FILE_ORDER = (
+    "paths.yaml",
+    "segmentation.yaml",
+    "features.yaml",
+    "classification.yaml",
+    "visualisation.yaml",
+    "smoke_test.yaml",
+    "full_dataset.yaml",
+    "cluster.yaml",
+)
 
 _DTYPE_LOOKUP: dict[str, torch.dtype] = {
     "float16": torch.float16,
@@ -16,13 +29,48 @@ _DTYPE_LOOKUP: dict[str, torch.dtype] = {
 
 
 def load_cardionet_config(config_path: str | Path | None = None) -> DictConfig:
-    """Load the repo-level CardioNet runtime configuration."""
+    """Load the repo-level CardioNet runtime configuration.
+
+    The default config is split across ``config/*.yaml``. A direct YAML path is
+    still supported for tests and older command lines. If that YAML contains a
+    top-level ``config_files`` list, those files are merged relative to the
+    YAML file's parent directory.
+    """
     resolved_path = DEFAULT_CONFIG_PATH if config_path is None else Path(config_path)
 
     if not resolved_path.exists():
         raise FileNotFoundError(f"CardioNet config not found: {resolved_path}")
 
-    return OmegaConf.load(resolved_path)
+    if resolved_path.is_dir():
+        configs = []
+        for filename in CONFIG_FILE_ORDER:
+            path = resolved_path / filename
+            if path.exists():
+                configs.append(OmegaConf.load(path))
+        if not configs:
+            raise FileNotFoundError(f"No CardioNet config fragments found in: {resolved_path}")
+        return OmegaConf.merge(*configs)
+
+    if (
+        resolved_path.parent.resolve() == DEFAULT_CONFIG_DIR.resolve()
+        and resolved_path.name in CONFIG_FILE_ORDER
+    ):
+        return load_cardionet_config(DEFAULT_CONFIG_DIR)
+
+    config = OmegaConf.load(resolved_path)
+    if "config_files" not in config:
+        return config
+
+    base_dir = resolved_path.parent
+    configs = []
+    for entry in config.config_files:
+        include_path = Path(str(entry))
+        if not include_path.is_absolute():
+            include_path = base_dir / include_path
+        if not include_path.exists():
+            raise FileNotFoundError(f"Included CardioNet config not found: {include_path}")
+        configs.append(OmegaConf.load(include_path))
+    return OmegaConf.merge(*configs)
 
 
 def resolve_runtime_device_and_dtype(
@@ -192,3 +240,32 @@ def resolve_prediction_labels_path(
     return output_dir / (
         f"{basename}{config.conventions.file_naming.predicted_labels_suffix}"
     )
+
+
+def resolve_feature_raycast_settings(
+    config: DictConfig,
+    *,
+    script_name: str | None = None,
+) -> DictConfig:
+    """Return feature raycast settings with optional script-specific overrides."""
+    defaults = config.features.raycast
+    if script_name is None:
+        return OmegaConf.create(OmegaConf.to_container(defaults, resolve=True))
+
+    script_cfg = config.scripts[script_name]
+    overrides = {
+        key: script_cfg[key]
+        for key in ("n_rays", "ray_step", "max_radius", "smooth_window", "line_radius")
+        if key in script_cfg and script_cfg[key] is not None
+    }
+    return OmegaConf.merge(defaults, overrides)
+
+
+def resolve_aha_slice_type(script_cfg: DictConfig) -> str:
+    """Resolve clinician-selected slice type, accepting the old ring_type alias."""
+    from cardionet.features.aha_segments import normalize_aha_slice_type
+
+    configured = script_cfg.get("slice_type", None)
+    if configured is None:
+        configured = script_cfg.get("ring_type", None)
+    return normalize_aha_slice_type(configured)

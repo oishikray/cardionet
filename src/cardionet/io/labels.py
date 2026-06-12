@@ -9,7 +9,7 @@ def load_label_volume(path: str | Path) -> np.ndarray:
     """
     Load a 4D label volume from .npy.
 
-    Expected shape: (H, W, S, T)
+    Expected shape: (x, y, z, t)
     """
     path = Path(path)
 
@@ -19,6 +19,6 @@ def load_label_volume(path: str | Path) -> np.ndarray:
     labels = np.load(path)
 
     if labels.ndim != 4:
-        raise ValueError(f"Expected labels shape (H, W, S, T), got {labels.shape}")
+        raise ValueError(f"Expected labels shape (x, y, z, t), got {labels.shape}")
 
     return labels

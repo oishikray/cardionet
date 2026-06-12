@@ -1,0 +1,45 @@
+# QC and visualization settings.
+
+qc:
+  enabled: true
+
+  segmentation_overlays:
+    enabled: true
+    save_per_slice_gifs: true
+    figure_size: [4, 4]
+    dpi: 150
+    gif_loop: 0
+    gif_duration_base_ms: 50
+    cmap: "gray"
+    contour_line_width: 1.5
+
+    colors_rgba:
+      rv: [1.000000, 0.900000, 0.000000, 1.0]
+      myocardium: [0.000000, 0.850000, 0.250000, 1.0]
+      lv: [1.000000, 0.000000, 0.000000, 1.0]
+
+  volume_plot:
+    enabled: true
+    figsize: [5, 4]
+    dpi_screen: 120
+    dpi_save: 300
+    ylabel: "Volume (ml)"
+    compute_lvef: true
+    compute_rvef: true
+    drop_poor_lv_slices: true
+    lv_slice_drop:
+      min_peak_area_fraction: 0.08
+      apical_min_peak_area_fraction: 0.20
+      max_es_ed_area_ratio: 1.05
+      apical_max_es_ed_area_ratio: 1.0
+
+  save_intermediate_metadata:
+    enabled: false
+    save_json_sidecars: false
+
+scripts:
+  run_visualisations:
+    enabled: true
+    segment_metrics_path: "${paths.stage_outputs.features}/pipeline_features/segment_metrics.csv"
+    classification_summary_path: "${classification.threshold_classification.output_dir}/threshold_sweep_summary.json"
+    output_root: "${paths.stage_outputs.qc}/pipeline_visualisations"

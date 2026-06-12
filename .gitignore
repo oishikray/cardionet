@@ -20,3 +20,6 @@ scratch/
 coverage/
 AGENTS.md
 model/
+scripts/legacy/
+smoke_test_saved_segmentation_visualizations/
+tmp/

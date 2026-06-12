@@ -1,0 +1,144 @@
+# Model inference, runtime, logging, and segmentation-owned scripts.
+
+runtime:
+  device:
+    preferred: "auto"
+    explicit_index: 0
+    allow_mps: false
+    fallback_to_cpu: true
+
+  precision:
+    autocast_enabled: true
+    prefer_bfloat16_if_available: true
+    default_cpu_dtype: "float32"
+    default_cuda_dtype: "float32"
+
+  reproducibility:
+    deterministic_torch: false
+    cudnn_benchmark: false
+
+logging:
+  level: "INFO"
+  console: true
+  save_to_file: false
+  log_filename: "cardionet.log"
+  tqdm_enabled: true
+
+segmentation:
+  backend: "cinema_convunetr"
+
+  model:
+    source: "local"
+    architecture: "ConvUNetR"
+    trained_dataset: "acdc"
+    view: "sax"
+    seed: 0
+    strict_load: true
+    eval_mode: true
+    explicit_weights_path: ""
+    explicit_config_path: ""
+
+    local_layout:
+      finetuned_dir_template: "finetuned/segmentation/{trained_dataset}_{view}"
+      weights_template: "{trained_dataset}_{view}_{seed}.safetensors"
+      config_filename: "config.yaml"
+
+  inference:
+    enabled: true
+    batch_mode: "framewise"
+    input_key: "sax"
+    output_key: "sax"
+    temporal_subsampling_step: 1
+    save_input_arrays: true
+    save_prediction_arrays: true
+    overwrite_existing_outputs: true
+
+    preprocessing:
+      scale_intensity: true
+      pad_spatial: true
+      pad_spatial_size: [192, 192, 16]
+      pad_method: "end"
+
+    expected:
+      input_ndim: 4
+      canonical_axes: "${conventions.image_axes}"
+      logit_channels: 4
+      min_num_slices: 1
+      min_num_frames: 1
+
+    output:
+      dtype: "uint8"
+      save_format: "npy"
+
+    validation:
+      enforce_4d_input: true
+      enforce_output_shape_match: true
+      raise_on_missing_input: true
+      validate_unique_labels: false
+      allowed_labels:
+        - "${conventions.labels.background}"
+        - "${conventions.labels.rv}"
+        - "${conventions.labels.myocardium}"
+        - "${conventions.labels.lv}"
+
+  io:
+    nifti_loader: "SimpleITK"
+    transpose_after_load: true
+    transpose_mode: "reverse_axes"
+    require_4d_after_load: true
+
+  labels: "${conventions.labels}"
+
+scripts:
+  infer_acdc_cine:
+    enabled: true
+    dataset_name: "acdc"
+    split: "train"
+    use_dataset_section_patient_selector: true
+    override_patient_start: null
+    override_patient_end: null
+    override_patient_ids: []
+    output_root: "${paths.stage_outputs.segmentation}"
+    save_gif: true
+    save_volume_plot: true
+
+  segmentation_gifs_acdc_selection:
+    enabled: true
+    dataset_name: "acdc"
+    output_root: "${paths.stage_outputs.segmentation_selection}"
+    output_dir_template: "{patient_id}"
+    cohorts:
+      - split: "test"
+        selected_slices:
+          - patient_id: "patient121"
+            slice_index: null
+            slice_type: null
+          - patient_id: "patient139"
+            slice_index: null
+            slice_type: null
+          - patient_id: "patient146"
+            slice_index: null
+            slice_type: null
+          - patient_id: "patient112"
+            slice_index: null
+            slice_type: null
+          - patient_id: "patient150"
+            slice_index: null
+            slice_type: null
+      - split: "train"
+        selected_slices:
+          - patient_id: "patient021"
+            slice_index: null
+            slice_type: null
+          - patient_id: "patient015"
+            slice_index: null
+            slice_type: null
+          - patient_id: "patient033"
+            slice_index: null
+            slice_type: null
+          - patient_id: "patient049"
+            slice_index: null
+            slice_type: null
+          - patient_id: "patient057"
+            slice_index: null
+            slice_type: null

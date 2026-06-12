@@ -1,0 +1,49 @@
+# CardioGPT export, diagnosis CSV, and threshold-classifier settings.
+
+classification:
+  cardiogpt:
+    content_dir: "${paths.datasets.cardiogpt_content_root}"
+    dataset_dirname: "data_oishik"
+    dataset_root: "${paths.datasets.cardiogpt_dataset_root}"
+    workbook_name: "data_oishik.xlsx"
+    diagnosis_csv_name: "diagnosis.csv"
+    ground_truth_labels_path: "${paths.datasets.cardiogpt_dataset_root}/diagnosis.csv"
+
+  segment_timeseries_export:
+    output_root: "${paths.stage_outputs.cardiogpt_export}"
+    json_name: "cardiogpt_segment_timeseries.json"
+    reuse_segmentation: false
+
+  threshold_classification:
+    labelled_metrics_csv: "${paths.project_root}/smoke_test_saved_segmentation_visualizations_output/dataset_level_metrics/segment_metrics_labelled.csv"
+    output_dir: "${paths.stage_outputs.classification}"
+    class_order: ["normal", "hypo", "aki_diski"]
+    metric_columns: ["peak_nwt", "peak_endocardial_excursion"]
+    n_steps: 200
+
+scripts:
+  export_cardiogpt_segment_timeseries:
+    enabled: true
+    input_root: "${classification.cardiogpt.dataset_root}"
+    segmentation_root: "${paths.stage_outputs.smoke_visualizations}/segmentation"
+    output_root: "${classification.segment_timeseries_export.output_root}"
+    json_name: "${classification.segment_timeseries_export.json_name}"
+
+  classify_segment_metrics_thresholds:
+    enabled: true
+    input_csv: "${classification.threshold_classification.labelled_metrics_csv}"
+    output_dir: "${classification.threshold_classification.output_dir}"
+    n_steps: "${classification.threshold_classification.n_steps}"
+
+  run_threshold_classifier:
+    enabled: true
+    input_csv: "${paths.stage_outputs.features}/pipeline_features/segment_metrics_labelled.csv"
+    output_dir: "${classification.threshold_classification.output_dir}"
+    n_steps: "${classification.threshold_classification.n_steps}"
+
+  build_cardiogpt_diagnosis_csv:
+    enabled: true
+    content_dir: "${classification.cardiogpt.content_dir}"
+    dataset_dirname: "${classification.cardiogpt.dataset_dirname}"
+    workbook_name: "${classification.cardiogpt.workbook_name}"
+    output_name: "${classification.cardiogpt.diagnosis_csv_name}"

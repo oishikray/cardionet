@@ -1,0 +1,54 @@
+# Cluster execution profile. Edit this file for the actual scheduler/hardware.
+
+cluster:
+  scheduler: "slurm"
+  profile: "generic_slurm"
+
+  environment:
+    python: "python"
+    activate_command: "conda activate cardionet"
+    project_root: "${paths.project_root}"
+    workdir: "${paths.project_root}"
+
+  artifacts:
+    manifest_path: "${paths.outputs_root}/manifests/pipeline_manifest.csv"
+    status_root: "${paths.outputs_root}/status"
+    log_root: "${paths.logs_root}/cluster"
+    segmentation_root: "${paths.stage_outputs.segmentation}"
+    feature_root: "${paths.stage_outputs.features}/cluster_features"
+    classification_root: "${paths.stage_outputs.classification}"
+    visualisation_root: "${paths.stage_outputs.qc}/cluster_visualisations"
+
+  slurm:
+    sbatch: "sbatch"
+    array_env_var: "SLURM_ARRAY_TASK_ID"
+    template_path: "scripts/slurm/run_stage_array.sbatch"
+
+  resources:
+    segmentation:
+      partition: "gpu"
+      gpus_per_task: 1
+      cpus_per_task: 8
+      mem: "32G"
+      time: "04:00:00"
+
+    features:
+      partition: "cpu"
+      gpus_per_task: 0
+      cpus_per_task: 8
+      mem: "24G"
+      time: "02:00:00"
+
+    classification:
+      partition: "cpu"
+      gpus_per_task: 0
+      cpus_per_task: 4
+      mem: "8G"
+      time: "00:30:00"
+
+    visualisation:
+      partition: "cpu"
+      gpus_per_task: 0
+      cpus_per_task: 4
+      mem: "16G"
+      time: "01:00:00"
