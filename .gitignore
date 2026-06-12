@@ -23,3 +23,7 @@ model/
 scripts/legacy/
 smoke_test_saved_segmentation_visualizations/
 tmp/
+smoke_test_saved_segmentation_visualizations_output/
+imports_audit.txt
+requirements.freeze.txt
+tmp/

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
-from cardionet.visualization.aha_qc import save_debug_wt_plot
+from cardionet.visualization.aha_qc import bullseye_wedge_angles, save_debug_wt_plot
 
 
 def test_save_debug_wt_plot_writes_file(tmp_path: Path):
@@ -17,3 +17,14 @@ def test_save_debug_wt_plot_writes_file(tmp_path: Path):
     )
 
     assert outpath.exists()
+
+def test_bullseye_wedge_angles_center_anterior_at_top():
+    theta1, theta2, center = bullseye_wedge_angles(index=0, n_segments=6)
+    assert theta1 == 60.0
+    assert theta2 == 120.0
+    assert center == 90.0
+
+
+def test_bullseye_wedge_angles_puts_inferior_at_bottom():
+    _, _, center = bullseye_wedge_angles(index=3, n_segments=6)
+    assert center == 270.0
