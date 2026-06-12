@@ -28,3 +28,4 @@ imports_audit.txt
 requirements.freeze.txt
 tmp/
 scripts/check_env.py
+SEGMENTS.md
